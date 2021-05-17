@@ -37,8 +37,6 @@ class MyHomePage extends StatefulWidget {
   MyHomePage({Key? key, required this.title}) : super(key: key);
 
   final String title;
-
-  Set<LogicalKeyboardKey> keyboardKeys = {};
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -80,7 +78,7 @@ class _MyHomePageState extends State<MyHomePage>
   bool initial = true;
   late double screenWidth;
   late List<double> scaleList;
-  late FocusNode _focusNode;
+  // late FocusNode _focusNode;
   int commandCount = 0;
   double scale = 1.0;
 
@@ -91,7 +89,7 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
+    // _focusNode = FocusNode();
     WidgetsBinding.instance?.addObserver(this);
     horizontalController = ScrollController();
     verticalController = ScrollController();
@@ -107,7 +105,7 @@ class _MyHomePageState extends State<MyHomePage>
   }
 
   getImage() async {
-    FocusScope.of(context).requestFocus(_focusNode);
+    // FocusScope.of(context).requestFocus(_focusNode);
 
     imageDataList = List.generate(imagePathList.length * 2, (index) => null);
     scaleList = List.generate(imagePathList.length, (index) => 1);
@@ -245,6 +243,91 @@ class _MyHomePageState extends State<MyHomePage>
     );
   }
 
+  scaleChange(double delta) {
+    setState(() {
+      scale += delta;
+      scale = scale.clamp(0.05, 3);
+    });
+  }
+
+  scrollHorizontal(double delta) {
+    double offset = horizontalController.offset + delta;
+    offset = offset.clamp(0, horizontalController.position.maxScrollExtent);
+    horizontalController.animateTo(offset,
+        duration: 100.milliseconds, curve: Curves.linear);
+  }
+
+  scrollVertical(double delta) {
+    double offset = verticalController.offset + delta;
+    offset = offset.clamp(0, verticalController.position.maxScrollExtent);
+    verticalController.animateTo(offset,
+        duration: 100.milliseconds, curve: Curves.linear);
+  }
+
+  // Widget singleImageWidget() {
+  //   Size size = MediaQuery.of(context).size;
+  //   return RawKeyboardListener(
+  //       focusNode: _focusNode,
+  //       onKey: (RawKeyEvent value) {
+  //         print('鍵盤:$value');
+  //         LogicalKeyboardKey keyId = value.logicalKey;
+  //         if (keyId == LogicalKeyboardKey.metaLeft ||
+  //             keyId == LogicalKeyboardKey.metaRight) {
+  //           print('command鍵盤');
+  //           commandCount += (value is RawKeyDownEvent ? 1 : -1);
+  //           commandCount = max(0, commandCount);
+  //           print('command數量: $commandCount');
+  //         }
+  //         if (value is RawKeyDownEvent) {
+  //           if (keyId == LogicalKeyboardKey.minus) {
+  //             if (commandCount > 0) {
+  //               print('縮小-------------------');
+  //               scaleChange(-0.1);
+  //             }
+  //           }
+
+  //           if (keyId == LogicalKeyboardKey.equal) {
+  //             if (commandCount > 0) {
+  //               print('放大+++++++++++++++++++');
+  //               scaleChange(0.1);
+  //             }
+  //           }
+  //           if (keyId == LogicalKeyboardKey.arrowLeft) {
+  //             scrollHorizontal(-50);
+  //           }
+
+  //           if (keyId == LogicalKeyboardKey.arrowRight) {
+  //             scrollHorizontal(50);
+  //           }
+
+  //           if (keyId == LogicalKeyboardKey.arrowUp) {
+  //             scrollVertical(-50);
+  //           }
+  //           if (keyId == LogicalKeyboardKey.arrowDown) {
+  //             scrollVertical(50);
+  //           }
+  //         }
+  //       },
+  //       child: Scrollbar(
+  //         child: SingleChildScrollView(
+  //           controller: horizontalController,
+  //           scrollDirection: Axis.horizontal,
+  //           child: Scrollbar(
+  //             child: SingleChildScrollView(
+  //               scrollDirection: Axis.vertical,
+  //               controller: verticalController,
+  //               child: Center(
+  //                 child: Transform.scale(
+  //                     origin: Offset(size.width / 2, size.height / 2),
+  //                     alignment: Alignment.topLeft,
+  //                     scale: scale,
+  //                     child: Image.asset('images/middle_east.jpeg')),
+  //               ),
+  //             ),
+  //           ),
+  //         ),
+  //       ));
+  // }
 
   Widget imageWidget() {
     Size size = MediaQuery.of(context).size;
