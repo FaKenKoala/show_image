@@ -12,13 +12,13 @@ class ImageWidget extends StatefulWidget {
 class _ImageWidgetState extends State<ImageWidget>
     with TickerProviderStateMixin {
   late BehaviorSubject<List<double>> transformSubject;
+  late PublishSubject checkBoundTask;
   late PublishSubject translateTask;
   FocusNode _focusNode = FocusNode();
   int commandCount = 0;
   double scale = 1.0;
   double translateX = 0;
   double translateY = 0;
-  late Size originalSize;
   final double minimumScale = 0.05;
   final double maximumScale = 3.0;
   final double translatePixel = 50;
@@ -35,8 +35,18 @@ class _ImageWidgetState extends State<ImageWidget>
   void initState() {
     super.initState();
     transformSubject = BehaviorSubject.seeded([scale, translateX, translateY]);
-    translateTask = PublishSubject()
+    checkBoundTask = PublishSubject()
       ..debounceTime(500.milliseconds).listen((_) => translate());
+
+    translateTask = PublishSubject<Offset>()
+    /// if not buffer time, it will cause sychronization problems.
+      ..bufferTime(20.milliseconds)
+          .where((data) => data.isNotEmpty)
+          .listen((offsets) {
+        translate(
+            offset: offsets.reduce((value, element) => value + element),
+            animate: false);
+      });
 
     animationController =
         AnimationController(vsync: this, duration: scaleDuration.milliseconds)
@@ -64,14 +74,11 @@ class _ImageWidgetState extends State<ImageWidget>
   void didChangeDependencies() {
     super.didChangeDependencies();
     FocusScope.of(context).requestFocus(_focusNode);
-    Future.delayed(500.milliseconds, () {
-      // print('获取图象的原始大小');
-      originalSize = _getSizes();
-    });
   }
 
   @override
   void dispose() {
+    checkBoundTask.close();
     translateTask.close();
     animationController.dispose();
     transformSubject.close();
@@ -92,66 +99,82 @@ class _ImageWidgetState extends State<ImageWidget>
 
     /// check translate when scaling
     WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
-      translateTask.add(null);
+      checkBoundTask.add(null);
     });
   }
 
-  translate({double xPixelOneMove = 0.0, double yPixelOneMove = 0.0}) {
-    double xDelta = _translateX(xPixelOneMove);
-    double yDelta = _translateY(yPixelOneMove);
+  translate({Offset offset = Offset.zero, bool animate = true}) {
+    final position = _getPosition();
+    final size = _getSize();
+    final screenSize = MediaQuery.of(context).size;
+
+    double _translateX([double delta = 0.0]) {
+      double xDelta = delta;
+      if (scale > 1) {
+        double imageWidth = size.width * scale;
+        double screenWidth = screenSize.width;
+        double nextDx = position.dx + xDelta;
+        if (imageWidth <= screenWidth) {
+          // print('图片比较小');
+          xDelta = -translateX;
+        } else if (nextDx >= 0) {
+          // print('大于0');
+          xDelta = -position.dx;
+        } else if (nextDx <= screenWidth - imageWidth) {
+          // print('小于差值');
+          xDelta = screenWidth - imageWidth - position.dx;
+        }
+      }
+      print('大等于0吗：' + '${offset.dx >= 0}' * 3);
+      print('xDelta：传入$delta, 结果:$xDelta');
+
+      return xDelta;
+    }
+
+    double _translateY([double delta = 0.0]) {
+      double yDelta = delta;
+      if (scale > 1) {
+        double imageHeight = size.height * scale;
+        double screenHeight = screenSize.height;
+        double nextDy = position.dy + yDelta;
+        if (imageHeight <= screenHeight) {
+          yDelta = -translateY;
+        } else if (nextDy >= 0) {
+          yDelta = -position.dy;
+        } else if (nextDy <= screenHeight - imageHeight) {
+          yDelta = screenHeight - imageHeight - position.dy;
+        }
+      }
+
+      print('yDelta：传入$delta, 结果:$yDelta');
+      return yDelta;
+    }
+
+    double xDelta = _translateX(offset.dx);
+    double yDelta = _translateY(offset.dy);
     bool needAnimation = xDelta != 0 || yDelta != 0;
     // print('translate需要动画:$needAnimation，$xDelta, $yDelta');
     if (needAnimation) {
-      translateAnimation = Tween<Offset>(
-              begin: Offset(translateX, translateY),
-              end: Offset(translateX + xDelta, translateY + yDelta))
-          .animate(animationController);
+      if (animate) {
+        translateAnimation = Tween<Offset>(
+                begin: Offset(translateX, translateY),
+                end: Offset(translateX + xDelta, translateY + yDelta))
+            .animate(animationController);
 
-      animationController
-        ..duration = (translateDuration *
-                max(xDelta.abs(), yDelta.abs()) /
-                translatePixel)
-            .milliseconds
-        ..reset()
-        ..forward();
-    }
-  }
-
-  double _translateX([double delta = 0.0]) {
-    double xDelta = delta;
-    if (scale > 1) {
-      Offset position = _getPositions();
-      double imageWidth = originalSize.width * scale;
-      double screenWidth = MediaQuery.of(context).size.width;
-      double nextDx = position.dx + xDelta;
-      if (imageWidth <= screenWidth) {
-        /// image width less than screen width
-        xDelta = -translateX;
-      } else if (nextDx >= 0) {
-        xDelta = -position.dx;
-      } else if (nextDx <= screenWidth - imageWidth) {
-        xDelta = screenWidth - imageWidth - position.dx;
+        animationController
+          ..duration = (translateDuration *
+                  max(xDelta.abs(), yDelta.abs()) /
+                  translatePixel)
+              .milliseconds
+          ..reset()
+          ..forward();
+      } else {
+        translateX += xDelta;
+        translateY += yDelta;
+        print('结果: $translateX\n');
+        postTransform();
       }
     }
-    return xDelta;
-  }
-
-  double _translateY([double delta = 0.0]) {
-    double yDelta = delta;
-    if (scale > 1) {
-      Offset position = _getPositions();
-      double imageHeight = originalSize.height * scale;
-      double screenHeight = MediaQuery.of(context).size.height;
-      double nextDy = position.dy + yDelta;
-      if (imageHeight <= screenHeight) {
-        yDelta = -translateY;
-      } else if (nextDy >= 0) {
-        yDelta = -position.dy;
-      } else if (nextDy <= screenHeight - imageHeight) {
-        yDelta = screenHeight - imageHeight - position.dy;
-      }
-    }
-    return yDelta;
   }
 
   postTransform() {
@@ -163,20 +186,21 @@ class _ImageWidgetState extends State<ImageWidget>
     transformSubject.add([scale, translateX, translateY]);
   }
 
-  Size _getSizes() {
+  Size _getSize() {
     final RenderBox renderBox =
         _keyImage.currentContext!.findRenderObject() as RenderBox;
     final size = renderBox.size;
-    // final screenSize = MediaQuery.of(context).size;
-    // print('图片size: $size, 屏幕size: $screenSize ');
+    // print('大小: $size');
+
     return size;
   }
 
-  Offset _getPositions() {
+  Offset _getPosition() {
     final RenderBox renderBoxRed =
         _keyImage.currentContext!.findRenderObject() as RenderBox;
     final position = renderBoxRed.localToGlobal(Offset.zero);
-    // print("图片位置: $position ");
+    print('位置: $position');
+
     return position;
   }
 
@@ -209,23 +233,19 @@ class _ImageWidgetState extends State<ImageWidget>
           scaleChange(0.1);
         }
       }
-      if (keyId == LogicalKeyboardKey.arrowLeft ||
-          keyId == LogicalKeyboardKey.keyA) {
-        translate(xPixelOneMove: translatePixel);
+      if (keyId == LogicalKeyboardKey.arrowLeft) {
+        translate(offset: Offset(translatePixel, 0));
       }
 
-      if (keyId == LogicalKeyboardKey.arrowRight ||
-          keyId == LogicalKeyboardKey.keyD) {
-        translate(xPixelOneMove: -1 * translatePixel);
+      if (keyId == LogicalKeyboardKey.arrowRight) {
+        translate(offset: Offset(-1 * translatePixel, 0));
       }
 
-      if (keyId == LogicalKeyboardKey.arrowUp ||
-          keyId == LogicalKeyboardKey.keyW) {
-        translate(yPixelOneMove: translatePixel);
+      if (keyId == LogicalKeyboardKey.arrowUp) {
+        translate(offset: Offset(0, translatePixel));
       }
-      if (keyId == LogicalKeyboardKey.arrowDown ||
-          keyId == LogicalKeyboardKey.keyS) {
-        translate(yPixelOneMove: -1 * translatePixel);
+      if (keyId == LogicalKeyboardKey.arrowDown) {
+        translate(offset: Offset(0, -1 * translatePixel));
       }
     }
   }
@@ -252,38 +272,64 @@ class _ImageWidgetState extends State<ImageWidget>
     // postTransform();
   }
 
+  MouseCursor cursor = SystemMouseCursors.basic;
   @override
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKey: _handleKeyEvent,
-        child: Container(
-          color: Colors.black,
-          child: StreamBuilder<List<double>>(
-              stream: transformSubject,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  var data = snapshot.data!;
-                  Matrix4 matrix = Matrix4.identity()
-                    ..translate(data[1], data[2])
-                    ..scale(data[0]);
+    return MouseRegion(
+      cursor: cursor,
+      child: RawKeyboardListener(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKey: _handleKeyEvent,
+          child: Container(
+            color: Colors.black,
+            child: StreamBuilder<List<double>>(
+                stream: transformSubject,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    var data = snapshot.data!;
+                    Matrix4 matrix = Matrix4.identity()
+                      ..translate(data[1], data[2])
+                      ..scale(data[0]);
 
+                    return Center(
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: matrix,
+                        child: GestureDetector(
+                            onDoubleTap: _handleDoubleTap,
+                            onPanDown: (details) {
+                              print('onPanDown: $details');
+                            },
+                            onPanEnd: (details) {
+                              print('onPanEnd: $details');
+                              setState(() {
+                                cursor = SystemMouseCursors.basic;
+                              });
+                            },
+                            onPanUpdate: (details) {
+                              print('onPanUpdate: $details');
+                              if (cursor != SystemMouseCursors.grabbing) {
+                                setState(() {
+                                  cursor = SystemMouseCursors.grabbing;
+                                });
+                              }
+                              // translate(offset: details.delta, animate: false);
+                              translateTask.add(details.delta);
+                            },
+                            onPanCancel: () {
+                              print('onPanCancel');
+                            },
+                            child: Image.asset('images/hole3.jpeg',
+                                key: _keyImage)),
+                      ),
+                    );
+                  }
                   return Center(
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: matrix,
-                      child: GestureDetector(
-                          onDoubleTap: _handleDoubleTap,
-                          child:
-                              Image.asset('images/hole3.jpeg', key: _keyImage)),
-                    ),
+                    child: CircularProgressIndicator(),
                   );
-                }
-                return Center(
-                  child: CircularProgressIndicator(),
-                );
-              }),
-        ));
+                }),
+          )),
+    );
   }
 }
