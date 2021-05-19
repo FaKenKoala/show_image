@@ -94,6 +94,9 @@ class _MyHomePageState extends State<MyHomePage>
     WidgetsBinding.instance?.addObserver(this);
     horizontalController = ScrollController();
     verticalController = ScrollController();
+
+    tabController = TabController(length: 2, vsync: this);
+    pageController = PageController(viewportFraction: 1.2);
   }
 
   @override
@@ -172,7 +175,7 @@ class _MyHomePageState extends State<MyHomePage>
     });
 
     tabController = TabController(length: imageDataList.length, vsync: this);
-    pageController = PageController();
+    pageController = PageController(initialPage: 0, keepPage: true);
   }
 
   @override
@@ -200,9 +203,54 @@ class _MyHomePageState extends State<MyHomePage>
         backgroundColor: Colors.black,
         body: imageDataList.isEmpty
             ? Center(child: CircularProgressIndicator())
-            : Center(
-                child: ImageWidget(),
-              ));
+            : multiImageWidget());
+  }
+
+  Widget multiImageWidget() {
+    final files = ['images/hole2.jpeg', 'images/hole3.jpeg'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TabBar(
+          labelColor: Colors.green,
+          tabs: files.mapIndexed((index, e) {
+            String name = 'index';
+            name = e.substring(e.lastIndexOf('/') + 1);
+            return Tab(
+              text: '$name',
+            );
+          }).toList(),
+          controller: tabController,
+          isScrollable: true,
+          onTap: (value) {
+            pageController.jumpToPage(value);
+          },
+        ),
+        Expanded(
+            child: PageView.builder(
+                physics: BouncingScrollPhysics(),
+                controller: pageController,
+                itemCount: files.length,
+                itemBuilder: (_, index) {
+                  return Row(
+                    children: [
+                      Flexible(
+                          flex: 1,
+                          child: Container(
+                            color: Colors.white,
+                          )),
+                      Flexible(
+                          flex: 10, child: ImageWidget(file: files[index])),
+                      Flexible(
+                          flex: 1,
+                          child: Container(
+                            color: Colors.white,
+                          )),
+                    ],
+                  );
+                })),
+      ],
+    );
   }
 
   StringBuffer keyBuffer = StringBuffer();
@@ -216,7 +264,7 @@ class _MyHomePageState extends State<MyHomePage>
             return false;
           },
           child: SizeChangedLayoutNotifier(
-                      child: Container(
+            child: Container(
               width: width,
               height: 100,
               color: Colors.green,

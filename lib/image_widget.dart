@@ -1,16 +1,22 @@
 import 'dart:math';
-import 'package:time/time.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:time/time.dart';
 
 class ImageWidget extends StatefulWidget {
+  final String file;
+  const ImageWidget({
+    Key? key,
+    required this.file,
+  }) : super(key: key);
   @override
   _ImageWidgetState createState() => _ImageWidgetState();
 }
 
 class _ImageWidgetState extends State<ImageWidget>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late BehaviorSubject<List<double>> transformSubject;
   late PublishSubject checkBoundTask;
   late PublishSubject translateTask;
@@ -39,7 +45,8 @@ class _ImageWidgetState extends State<ImageWidget>
       ..debounceTime(500.milliseconds).listen((_) => translate());
 
     translateTask = PublishSubject<Offset>()
-    /// if not buffer time, it will cause sychronization problems.
+
+      /// if not buffer time, it will cause sychronization problems.
       ..bufferTime(20.milliseconds)
           .where((data) => data.isNotEmpty)
           .listen((offsets) {
@@ -296,32 +303,7 @@ class _ImageWidgetState extends State<ImageWidget>
                       child: Transform(
                         alignment: Alignment.center,
                         transform: matrix,
-                        child: GestureDetector(
-                            onDoubleTap: _handleDoubleTap,
-                            onPanDown: (details) {
-                              print('onPanDown: $details');
-                            },
-                            onPanEnd: (details) {
-                              print('onPanEnd: $details');
-                              setState(() {
-                                cursor = SystemMouseCursors.basic;
-                              });
-                            },
-                            onPanUpdate: (details) {
-                              print('onPanUpdate: $details');
-                              if (cursor != SystemMouseCursors.grabbing) {
-                                setState(() {
-                                  cursor = SystemMouseCursors.grabbing;
-                                });
-                              }
-                              // translate(offset: details.delta, animate: false);
-                              translateTask.add(details.delta);
-                            },
-                            onPanCancel: () {
-                              print('onPanCancel');
-                            },
-                            child: Image.asset('images/hole3.jpeg',
-                                key: _keyImage)),
+                        child: oldGesture(),
                       ),
                     );
                   }
@@ -332,4 +314,35 @@ class _ImageWidgetState extends State<ImageWidget>
           )),
     );
   }
+
+  Widget oldGesture() {
+    return GestureDetector(
+        onDoubleTap: _handleDoubleTap,
+        onPanDown: (details) {
+          print('onPanDown: $details');
+        },
+        onPanEnd: (details) {
+          print('onPanEnd: $details');
+          setState(() {
+            cursor = SystemMouseCursors.basic;
+          });
+        },
+        onPanUpdate: (details) {
+          print('onPanUpdate: $details');
+          if (cursor != SystemMouseCursors.grabbing) {
+            setState(() {
+              cursor = SystemMouseCursors.grabbing;
+            });
+          }
+          // translate(offset: details.delta, animate: false);
+          translateTask.add(details.delta);
+        },
+        onPanCancel: () {
+          print('onPanCancel');
+        },
+        child: Image.asset(widget.file, key: _keyImage));
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 }
