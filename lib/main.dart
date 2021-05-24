@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -7,12 +6,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as image;
-import 'package:photo_view/photo_view.dart';
+import 'package:show_image/gesture_test.dart';
 
 import 'package:show_image/image_painter.dart';
 import 'package:collection/collection.dart';
 import 'package:show_image/image_widget.dart';
-import 'package:show_image/transform_test.dart';
 import 'package:time/time.dart';
 
 void main() {
@@ -29,6 +27,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
+      // home:GestureTest(),
       home: MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
@@ -203,7 +202,7 @@ class _MyHomePageState extends State<MyHomePage>
         backgroundColor: Colors.black,
         body: imageDataList.isEmpty
             ? Center(child: CircularProgressIndicator())
-            : multiImageWidget());
+            : ImageWidget(file: 'images/hole2.jpeg',));
   }
 
   Widget multiImageWidget() {
@@ -313,139 +312,6 @@ class _MyHomePageState extends State<MyHomePage>
         duration: 100.milliseconds, curve: Curves.linear);
   }
 
-  // Widget singleImageWidget() {
-  //   Size size = MediaQuery.of(context).size;
-  //   return RawKeyboardListener(
-  //       focusNode: _focusNode,
-  //       onKey: (RawKeyEvent value) {
-  //         print('鍵盤:$value');
-  //         LogicalKeyboardKey keyId = value.logicalKey;
-  //         if (keyId == LogicalKeyboardKey.metaLeft ||
-  //             keyId == LogicalKeyboardKey.metaRight) {
-  //           print('command鍵盤');
-  //           commandCount += (value is RawKeyDownEvent ? 1 : -1);
-  //           commandCount = max(0, commandCount);
-  //           print('command數量: $commandCount');
-  //         }
-  //         if (value is RawKeyDownEvent) {
-  //           if (keyId == LogicalKeyboardKey.minus) {
-  //             if (commandCount > 0) {
-  //               print('縮小-------------------');
-  //               scaleChange(-0.1);
-  //             }
-  //           }
-
-  //           if (keyId == LogicalKeyboardKey.equal) {
-  //             if (commandCount > 0) {
-  //               print('放大+++++++++++++++++++');
-  //               scaleChange(0.1);
-  //             }
-  //           }
-  //           if (keyId == LogicalKeyboardKey.arrowLeft) {
-  //             scrollHorizontal(-50);
-  //           }
-
-  //           if (keyId == LogicalKeyboardKey.arrowRight) {
-  //             scrollHorizontal(50);
-  //           }
-
-  //           if (keyId == LogicalKeyboardKey.arrowUp) {
-  //             scrollVertical(-50);
-  //           }
-  //           if (keyId == LogicalKeyboardKey.arrowDown) {
-  //             scrollVertical(50);
-  //           }
-  //         }
-  //       },
-  //       child: Scrollbar(
-  //         child: SingleChildScrollView(
-  //           controller: horizontalController,
-  //           scrollDirection: Axis.horizontal,
-  //           child: Scrollbar(
-  //             child: SingleChildScrollView(
-  //               scrollDirection: Axis.vertical,
-  //               controller: verticalController,
-  //               child: Center(
-  //                 child: Transform.scale(
-  //                     origin: Offset(size.width / 2, size.height / 2),
-  //                     alignment: Alignment.topLeft,
-  //                     scale: scale,
-  //                     child: Image.asset('images/middle_east.jpeg')),
-  //               ),
-  //             ),
-  //           ),
-  //         ),
-  //       ));
-  // }
-
-  Widget imageWidget() {
-    Size size = MediaQuery.of(context).size;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TabBar(
-          labelColor: Colors.green,
-          tabs: imageDataList.mapIndexed((index, e) {
-            String name = 'index';
-            if (e != null) {
-              name = e.name.substring(e.name.lastIndexOf('/') + 1);
-            }
-            return Tab(
-              text: '$name',
-            );
-          }).toList(),
-          controller: tabController,
-          isScrollable: true,
-          onTap: (value) {
-            pageController.jumpToPage(value);
-          },
-        ),
-        Expanded(
-            child: PageView.builder(
-                physics: NeverScrollableScrollPhysics(),
-                controller: pageController,
-                itemCount: imageDataList.length,
-                itemBuilder: (_, index) {
-                  ImageData? imageData = imageDataList[index];
-                  if (imageData == null) {
-                    return Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
-                  return Center(
-                    child: Column(
-                      // crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                              '圖片大小: ${imageData.width} * ${imageData.height}, 屏幕大小: ${size.width} * ${size.height}',
-                              style: TextStyle(fontSize: 30)),
-                        ),
-                        Expanded(
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.grab,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Container(
-                                    width: imageData.width.toDouble(),
-                                    height: imageData.height.toDouble(),
-                                    child: CustomPaint(
-                                        painter: ImagePainter(imageData))),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                })),
-      ],
-    );
-  }
 }
 
 Future<ImageData> getImageDataOld(String imageAssetPath) async {

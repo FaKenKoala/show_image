@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -17,15 +18,16 @@ class ImageWidget extends StatefulWidget {
 
 class _ImageWidgetState extends State<ImageWidget>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-  late BehaviorSubject<List<double>> transformSubject;
+  late BehaviorSubject<double> transformSubject;
   late PublishSubject checkBoundTask;
   late PublishSubject translateTask;
   FocusNode _focusNode = FocusNode();
   int commandCount = 0;
   double scale = 1.0;
-  double translateX = 0;
-  double translateY = 0;
-  final double minimumScale = 0.05;
+  double? startScale;
+
+  Offset translateOffset = Offset.zero;
+  final double minimumScale = Platform.isAndroid || Platform.isIOS ? 0.5 : 0.05;
   final double maximumScale = 3.0;
   final double translatePixel = 50;
   final double scaleDuration = 200;
@@ -36,18 +38,21 @@ class _ImageWidgetState extends State<ImageWidget>
   Animation<Offset>? translateAnimation;
   Animation<double>? scaleAnimation;
 
+  ScaleStartDetails? scaleStartDetails;
+  ScaleUpdateDetails? scaleUpdateDetails;
+
   GlobalKey _keyImage = GlobalKey();
   @override
   void initState() {
     super.initState();
-    transformSubject = BehaviorSubject.seeded([scale, translateX, translateY]);
+    transformSubject = BehaviorSubject.seeded(1.0);
     checkBoundTask = PublishSubject()
       ..debounceTime(500.milliseconds).listen((_) => translate());
 
     translateTask = PublishSubject<Offset>()
 
       /// if not buffer time, it will cause sychronization problems.
-      ..bufferTime(20.milliseconds)
+      ..bufferTime(10.milliseconds)
           .where((data) => data.isNotEmpty)
           .listen((offsets) {
         translate(
@@ -59,8 +64,7 @@ class _ImageWidgetState extends State<ImageWidget>
         AnimationController(vsync: this, duration: scaleDuration.milliseconds)
           ..addListener(() {
             if (translateAnimation != null) {
-              translateX = translateAnimation!.value.dx;
-              translateY = translateAnimation!.value.dy;
+              translateOffset = Offset.zero + translateAnimation!.value;
             }
 
             if (scaleAnimation != null) {
@@ -92,47 +96,97 @@ class _ImageWidgetState extends State<ImageWidget>
     super.dispose();
   }
 
-  scaleChange(double delta) {
-    double newScale = scale + delta;
-    newScale = newScale.clamp(minimumScale, maximumScale);
+  /// 键盘持续缩放时，在缩放间隔大于500ms时，需要对边界进行一次检测
+  keyboardScaleChange(double scaleIn) {
+    double newScale = scaleIn.clamp(minimumScale, maximumScale);
+    postScaleAnimation(newScale);
 
+    /// check translate when scaling
+    // WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
+    checkBoundTask.add(null);
+    // });
+  }
+
+  postScaleAnimation(double newScale) {
     scaleAnimation =
         Tween<double>(begin: scale, end: newScale).animate(animationController);
 
     animationController
       ..duration = scaleDuration.milliseconds
-      ..reset()
-      ..forward();
-
-    /// check translate when scaling
-    WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
-      checkBoundTask.add(null);
-    });
+      ..value = 0;
   }
 
-  translate({Offset offset = Offset.zero, bool animate = true}) {
+  /// 手势持续缩放时，只有缩放结束后，需要对缩放和边界设限。持续缩放过程中不需要边界和缩放级别的检测
+  gestureScaleChange() {
+    postTransform();
+  }
+
+  postTranslate(Offset offset) {
+    translateTask.add(offset);
+  }
+
+  postTransform() {
+    transformSubject.add(0);
+  }
+
+  postScaleEndTransform() {
+    /// 缩放级别检测和边界检测
+    print('scale end *************');
+    final translateDelta = _calculateTranslate();
+    final newScale = scale.clamp(minimumScale, maximumScale);
+
+    print('old scale: $scale, new scale: $newScale');
+    print(
+        'old translate: $translateOffset, new translateDelta: $translateDelta');
+
+    // if (translateDelta != Offset.zero) {
+    translateAnimation = Tween<Offset>(
+            begin: translateOffset, end: translateOffset + translateDelta)
+        .animate(animationController);
+    // }
+
+    // if (newScale != scale) {
+    scaleAnimation =
+        Tween<double>(begin: scale, end: newScale).animate(animationController);
+    // }
+
+    Duration duration = min(
+            scaleDuration,
+            (translateDuration *
+                max(
+                    1,
+                    max(translateDelta.dx.abs(), translateDelta.dy.abs()) /
+                        translatePixel)))
+        .milliseconds;
+
+    print('动画时长：$duration');
+    animationController
+      ..duration = duration
+      ..reset()
+      ..forward();
+  }
+
+  Offset _calculateTranslate([Offset offset = Offset.zero]) {
     final position = _getPosition();
     final size = _getSize();
     final screenSize = MediaQuery.of(context).size;
 
     double _translateX([double delta = 0.0]) {
       double xDelta = delta;
-      if (scale > 1) {
-        double imageWidth = size.width * scale;
-        double screenWidth = screenSize.width;
-        double nextDx = position.dx + xDelta;
-        if (imageWidth <= screenWidth) {
-          // print('图片比较小');
-          xDelta = -translateX;
-        } else if (nextDx >= 0) {
-          // print('大于0');
-          xDelta = -position.dx;
-        } else if (nextDx <= screenWidth - imageWidth) {
-          // print('小于差值');
-          xDelta = screenWidth - imageWidth - position.dx;
-        }
+      double imageWidth = size.width * scale;
+      double screenWidth = screenSize.width;
+      double nextDx = position.dx + xDelta;
+      if (scale <= 1 || imageWidth <= screenWidth) {
+        print('x图片比较小');
+        xDelta = -translateOffset.dx;
+      } else if (nextDx >= 0) {
+        print('x大于0');
+        xDelta = -position.dx;
+      } else if (nextDx <= screenWidth - imageWidth) {
+        print('x小于差值');
+        xDelta = screenWidth - imageWidth - position.dx;
       }
-      print('大等于0吗：' + '${offset.dx >= 0}' * 3);
+
       print('xDelta：传入$delta, 结果:$xDelta');
 
       return xDelta;
@@ -140,64 +194,55 @@ class _ImageWidgetState extends State<ImageWidget>
 
     double _translateY([double delta = 0.0]) {
       double yDelta = delta;
-      if (scale > 1) {
-        double imageHeight = size.height * scale;
-        double screenHeight = screenSize.height;
-        double nextDy = position.dy + yDelta;
-        if (imageHeight <= screenHeight) {
-          yDelta = -translateY;
-        } else if (nextDy >= 0) {
-          yDelta = -position.dy;
-        } else if (nextDy <= screenHeight - imageHeight) {
-          yDelta = screenHeight - imageHeight - position.dy;
-        }
+      double imageHeight = size.height * scale;
+      double screenHeight = screenSize.height;
+      double nextDy = position.dy + yDelta;
+      if (scale <= 1 || imageHeight <= screenHeight) {
+        yDelta = -translateOffset.dy;
+      } else if (nextDy >= 0) {
+        yDelta = -position.dy;
+      } else if (nextDy <= screenHeight - imageHeight) {
+        yDelta = screenHeight - imageHeight - position.dy;
       }
 
-      print('yDelta：传入$delta, 结果:$yDelta');
       return yDelta;
     }
 
     double xDelta = _translateX(offset.dx);
     double yDelta = _translateY(offset.dy);
-    bool needAnimation = xDelta != 0 || yDelta != 0;
-    // print('translate需要动画:$needAnimation，$xDelta, $yDelta');
-    if (needAnimation) {
-      if (animate) {
-        translateAnimation = Tween<Offset>(
-                begin: Offset(translateX, translateY),
-                end: Offset(translateX + xDelta, translateY + yDelta))
-            .animate(animationController);
-
-        animationController
-          ..duration = (translateDuration *
-                  max(xDelta.abs(), yDelta.abs()) /
-                  translatePixel)
-              .milliseconds
-          ..reset()
-          ..forward();
-      } else {
-        translateX += xDelta;
-        translateY += yDelta;
-        print('结果: $translateX\n');
-        postTransform();
-      }
-    }
+    return Offset(xDelta, yDelta);
   }
 
-  postTransform() {
-    ///when scale>=1 and the height or width is smaller than screen, it should also translate to
-    if (scale <= 1) {
-      _resetTranslate();
+  translate({Offset offset = Offset.zero, bool animate = true}) {
+    final delta = _calculateTranslate(offset);
+
+    if (delta == Offset.zero) {
+      return;
     }
 
-    transformSubject.add([scale, translateX, translateY]);
+    if (animate) {
+      translateAnimation =
+          Tween<Offset>(begin: translateOffset, end: translateOffset + delta)
+              .animate(animationController);
+
+      animationController
+        ..duration = (translateDuration *
+                max(delta.dx.abs(), delta.dy.abs()) /
+                translatePixel)
+            .milliseconds
+        ..value = 0;
+    } else {
+      translateOffset += delta;
+      print('translate结果: $translateOffset\n');
+      postTransform();
+    }
   }
 
   Size _getSize() {
     final RenderBox renderBox =
         _keyImage.currentContext!.findRenderObject() as RenderBox;
     final size = renderBox.size;
-    // print('大小: $size');
+    print('大小: $size');
 
     return size;
   }
@@ -230,14 +275,14 @@ class _ImageWidgetState extends State<ImageWidget>
       if (keyId == LogicalKeyboardKey.minus) {
         if (commandCount > 0) {
           // print('縮小-------------------');
-          scaleChange(-0.1);
+          keyboardScaleChange(scale - 0.1);
         }
       }
 
       if (keyId == LogicalKeyboardKey.equal) {
         if (commandCount > 0) {
           // print('放大+++++++++++++++++++');
-          scaleChange(0.1);
+          keyboardScaleChange(scale + 0.1);
         }
       }
       if (keyId == LogicalKeyboardKey.arrowLeft) {
@@ -257,16 +302,11 @@ class _ImageWidgetState extends State<ImageWidget>
     }
   }
 
-  _resetTranslate() {
-    translateX = translateY = 0;
-  }
-
   /// 是否需要处理鼠标所在的点为中心进行缩放呢？
   _handleDoubleTap() {
     const DoubleTapScales = [1.0, 2.0, 3.0];
     double newScale = DoubleTapScales[
         (DoubleTapScales.indexOf(scale) + 1) % DoubleTapScales.length];
-    _resetTranslate();
 
     scaleAnimation =
         Tween<double>(begin: scale, end: newScale).animate(animationController);
@@ -290,20 +330,19 @@ class _ImageWidgetState extends State<ImageWidget>
           onKey: _handleKeyEvent,
           child: Container(
             color: Colors.black,
-            child: StreamBuilder<List<double>>(
+            child: StreamBuilder(
                 stream: transformSubject,
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
-                    var data = snapshot.data!;
                     Matrix4 matrix = Matrix4.identity()
-                      ..translate(data[1], data[2])
-                      ..scale(data[0]);
+                      ..translate(translateOffset.dx, translateOffset.dy)
+                      ..scale(scale);
 
                     return Center(
                       child: Transform(
                         alignment: Alignment.center,
                         transform: matrix,
-                        child: oldGesture(),
+                        child: gestureWidget(),
                       ),
                     );
                   }
@@ -315,30 +354,49 @@ class _ImageWidgetState extends State<ImageWidget>
     );
   }
 
-  Widget oldGesture() {
+  Widget gestureWidget() {
     return GestureDetector(
         onDoubleTap: _handleDoubleTap,
-        onPanDown: (details) {
-          print('onPanDown: $details');
+        onScaleStart: (details) {
+          scaleStartDetails = details;
+          scaleUpdateDetails = null;
+
+          if (details.pointerCount == 2) {
+            startScale = scale;
+          }
+
+          setState(() {
+            cursor = details.pointerCount == 1
+                ? SystemMouseCursors.grabbing
+                : SystemMouseCursors.basic;
+          });
         },
-        onPanEnd: (details) {
-          print('onPanEnd: $details');
+        onScaleUpdate: (details) {
+          final oldUpdateDetail = scaleUpdateDetails;
+          scaleUpdateDetails = details;
+
+          if (details.pointerCount == 1) {
+            /// one point is moving
+            Offset offset = details.focalPoint -
+                (oldUpdateDetail?.focalPoint ?? scaleStartDetails!.focalPoint);
+            print('偏移值：$offset');
+
+            /// 偏移时需要边界检测
+            postTranslate(offset);
+            // translate(offset: offset, animate: false);
+          } else if (details.pointerCount == 2) {
+            /// two point is scale
+            // print('onScaleUpdate 2 points: $details');
+            scale = startScale! * details.scale;
+            postTransform();
+          }
+        },
+        onScaleEnd: (details) {
+          // print('onScaleEnd: $details');
           setState(() {
             cursor = SystemMouseCursors.basic;
           });
-        },
-        onPanUpdate: (details) {
-          print('onPanUpdate: $details');
-          if (cursor != SystemMouseCursors.grabbing) {
-            setState(() {
-              cursor = SystemMouseCursors.grabbing;
-            });
-          }
-          // translate(offset: details.delta, animate: false);
-          translateTask.add(details.delta);
-        },
-        onPanCancel: () {
-          print('onPanCancel');
+          postScaleEndTransform();
         },
         child: Image.asset(widget.file, key: _keyImage));
   }
