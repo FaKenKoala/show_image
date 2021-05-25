@@ -95,7 +95,7 @@ class _MyHomePageState extends State<MyHomePage>
     verticalController = ScrollController();
 
     tabController = TabController(length: 2, vsync: this);
-    pageController = PageController(viewportFraction: 1.2);
+    pageController = PageController(viewportFraction: 1.04);
   }
 
   @override
@@ -202,11 +202,13 @@ class _MyHomePageState extends State<MyHomePage>
         backgroundColor: Colors.black,
         body: imageDataList.isEmpty
             ? Center(child: CircularProgressIndicator())
-            : ImageWidget(file: 'images/hole2.jpeg',));
+            : multiImageWidget());
+    // : ImageWidget(file: 'images/hole2.jpeg',));
   }
 
   Widget multiImageWidget() {
-    final files = ['images/hole2.jpeg', 'images/hole3.jpeg'];
+    // final files = ['images/hole2.jpeg', 'images/hole3.jpeg'];
+    final files = ['images/middle_east.jpeg', 'images/middle_east.jpeg'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -227,7 +229,8 @@ class _MyHomePageState extends State<MyHomePage>
         ),
         Expanded(
             child: PageView.builder(
-                physics: BouncingScrollPhysics(),
+                physics: NeverScrollableScrollPhysics(),
+                allowImplicitScrolling: true,
                 controller: pageController,
                 itemCount: files.length,
                 itemBuilder: (_, index) {
@@ -238,8 +241,10 @@ class _MyHomePageState extends State<MyHomePage>
                           child: Container(
                             color: Colors.white,
                           )),
-                      Flexible(
-                          flex: 10, child: ImageWidget(file: files[index])),
+                      Flexible(flex: 50, 
+                      // child: scrollableWidget()),
+                      child:ImageWidget(
+                          file: files[index], resize: index == 0)),
                       Flexible(
                           flex: 1,
                           child: Container(
@@ -249,6 +254,21 @@ class _MyHomePageState extends State<MyHomePage>
                   );
                 })),
       ],
+    );
+  }
+
+  Widget scrollableWidget() {
+    return Text('test');
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemBuilder: (_, index) {
+        return Card(
+          child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Text('$index$index$index')),
+        );
+      },
+      itemCount: 20,
     );
   }
 
@@ -311,7 +331,6 @@ class _MyHomePageState extends State<MyHomePage>
     verticalController.animateTo(offset,
         duration: 100.milliseconds, curve: Curves.linear);
   }
-
 }
 
 Future<ImageData> getImageDataOld(String imageAssetPath) async {
