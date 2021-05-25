@@ -27,7 +27,7 @@ class _ImageWidgetState extends State<ImageWidget>
   double? startScale;
 
   Offset translateOffset = Offset.zero;
-  final double minimumScale = Platform.isAndroid || Platform.isIOS ? 0.5 : 0.05;
+  final double minimumScale = Platform.isAndroid || Platform.isIOS ? 0.5 : 0.2;
   final double maximumScale = 3.0;
   final double translatePixel = 50;
   final double scaleDuration = 200;
@@ -47,7 +47,10 @@ class _ImageWidgetState extends State<ImageWidget>
     super.initState();
     transformSubject = BehaviorSubject.seeded(1.0);
     checkBoundTask = PublishSubject()
-      ..debounceTime(500.milliseconds).listen((_) => translate());
+      ..debounceTime(500.milliseconds).listen((_) {
+        print('检测边界');
+        translate();
+      });
 
     translateTask = PublishSubject<Offset>()
 
@@ -113,7 +116,8 @@ class _ImageWidgetState extends State<ImageWidget>
 
     animationController
       ..duration = scaleDuration.milliseconds
-      ..value = 0;
+      ..reset()
+      ..forward();
   }
 
   /// 手势持续缩放时，只有缩放结束后，需要对缩放和边界设限。持续缩放过程中不需要边界和缩放级别的检测
@@ -139,16 +143,12 @@ class _ImageWidgetState extends State<ImageWidget>
     print(
         'old translate: $translateOffset, new translateDelta: $translateDelta');
 
-    // if (translateDelta != Offset.zero) {
     translateAnimation = Tween<Offset>(
             begin: translateOffset, end: translateOffset + translateDelta)
         .animate(animationController);
-    // }
 
-    // if (newScale != scale) {
     scaleAnimation =
         Tween<double>(begin: scale, end: newScale).animate(animationController);
-    // }
 
     Duration duration = min(
             scaleDuration,
@@ -159,7 +159,6 @@ class _ImageWidgetState extends State<ImageWidget>
                         translatePixel)))
         .milliseconds;
 
-    print('动画时长：$duration');
     animationController
       ..duration = duration
       ..reset()
@@ -215,7 +214,6 @@ class _ImageWidgetState extends State<ImageWidget>
 
   translate({Offset offset = Offset.zero, bool animate = true}) {
     final delta = _calculateTranslate(offset);
-
     if (delta == Offset.zero) {
       return;
     }
@@ -226,11 +224,14 @@ class _ImageWidgetState extends State<ImageWidget>
               .animate(animationController);
 
       animationController
-        ..duration = (translateDuration *
-                max(delta.dx.abs(), delta.dy.abs()) /
-                translatePixel)
+        ..duration = min(
+                scaleDuration,
+                (translateDuration *
+                    max(delta.dx.abs(), delta.dy.abs()) /
+                    translatePixel))
             .milliseconds
-        ..value = 0;
+        ..reset()
+        ..forward();
     } else {
       translateOffset += delta;
       print('translate结果: $translateOffset\n');
@@ -274,14 +275,14 @@ class _ImageWidgetState extends State<ImageWidget>
     if (keyEvent is RawKeyDownEvent) {
       if (keyId == LogicalKeyboardKey.minus) {
         if (commandCount > 0) {
-          // print('縮小-------------------');
+          print('縮小-------------------');
           keyboardScaleChange(scale - 0.1);
         }
       }
 
       if (keyId == LogicalKeyboardKey.equal) {
         if (commandCount > 0) {
-          // print('放大+++++++++++++++++++');
+          print('放大+++++++++++++++++++');
           keyboardScaleChange(scale + 0.1);
         }
       }
