@@ -44,6 +44,7 @@ class _ImageWidgetState extends State<ImageWidget>
   ScaleUpdateDetails? scaleUpdateDetails;
 
   GlobalKey _keyImage = GlobalKey();
+
   @override
   void initState() {
     super.initState();

@@ -64,7 +64,15 @@ class _GestureTestState extends State<GestureTest> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: Center(child: no()));
+    return Scaffold(
+        body: Center(
+      child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Container(
+              height: MediaQuery.of(context).size.height,
+              width: MediaQuery.of(context).size.width * 2,
+              child: no())),
+    ));
   }
 
   Widget no() {
@@ -92,21 +100,24 @@ class _GestureTestState extends State<GestureTest> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          MouseRegion(
-            onEnter: (event) {
-              mouseRegion(0);
-            },
-            onExit: (event) {
-              mouseRegion(-1);
-            },
+          Container(
+            color: Colors.yellowAccent,
             child: Transform(
               transform: Matrix4.identity()
                 ..scale(scales[0], scales[0])
                 ..translate(translates[0].dx, translates[0].dy),
-              child: Container(
-                width: 300,
-                height: 300,
-                color: Colors.yellow,
+              child: MouseRegion(
+                onEnter: (event) {
+                  mouseRegion(0);
+                },
+                onExit: (event) {
+                  mouseRegion(-1);
+                },
+                child: Container(
+                  width: 300,
+                  height: 300,
+                  color: Colors.yellow.withAlpha(100),
+                ),
               ),
             ),
           ),
@@ -117,12 +128,15 @@ class _GestureTestState extends State<GestureTest> {
             onExit: (event) {
               mouseRegion(-1);
             },
-            child: Transform.translate(
-              offset: translates[1],
-              child: Container(
-                width: 300 * scales[1],
-                height: 300 * scales[1],
-                color: Colors.green,
+            child: Container(
+              color: Colors.lightGreen,
+              child: Transform.translate(
+                offset: translates[1],
+                child: Container(
+                  width: 300 * scales[1],
+                  height: 300 * scales[1],
+                  color: Colors.green.withAlpha(100),
+                ),
               ),
             ),
           )

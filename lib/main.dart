@@ -7,11 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as image;
 import 'package:show_image/gesture_test.dart';
+import 'package:show_image/gesture_test3.dart';
 
 import 'package:show_image/image_painter.dart';
 import 'package:collection/collection.dart';
 import 'package:show_image/image_widget.dart';
+import 'package:show_image/scale_test.dart';
 import 'package:time/time.dart';
+
+import 'gesture_test2.dart';
 
 void main() {
   runApp(MyApp());
@@ -27,8 +31,9 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      // home:GestureTest(),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      // home: GestureTest2(index: 0,),
+      // home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: GestureTest3(),
     );
   }
 }
@@ -86,6 +91,9 @@ class _MyHomePageState extends State<MyHomePage>
 
   late ScrollController horizontalController;
   late ScrollController verticalController;
+
+  final files = ['images/hole2.jpeg', 'images/hole3.jpeg'];
+  // final files = ['images/middle_east.jpeg'];
   @override
   void initState() {
     super.initState();
@@ -94,7 +102,7 @@ class _MyHomePageState extends State<MyHomePage>
     horizontalController = ScrollController();
     verticalController = ScrollController();
 
-    tabController = TabController(length: 2, vsync: this);
+    tabController = TabController(length: files.length, vsync: this);
     pageController = PageController(viewportFraction: 1.04);
   }
 
@@ -207,8 +215,6 @@ class _MyHomePageState extends State<MyHomePage>
   }
 
   Widget multiImageWidget() {
-    // final files = ['images/hole2.jpeg', 'images/hole3.jpeg'];
-    final files = ['images/middle_east.jpeg', 'images/middle_east.jpeg'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -229,7 +235,7 @@ class _MyHomePageState extends State<MyHomePage>
         ),
         Expanded(
             child: PageView.builder(
-                physics: NeverScrollableScrollPhysics(),
+                // physics: NeverScrollableScrollPhysics(),
                 allowImplicitScrolling: true,
                 controller: pageController,
                 itemCount: files.length,
@@ -241,10 +247,14 @@ class _MyHomePageState extends State<MyHomePage>
                           child: Container(
                             color: Colors.white,
                           )),
-                      Flexible(flex: 50, 
-                      // child: scrollableWidget()),
-                      child:ImageWidget(
-                          file: files[index], resize: index == 0)),
+                      Flexible(
+                          flex: 50,
+                          // child: scrollableWidget(files[index])),
+                          //   child: GestureTest2(index: index),
+                          // ),
+                          // child: ImageWidget(
+                          //     file: files[index], resize: index == 0)),
+                          child: ScaleTest()),
                       Flexible(
                           flex: 1,
                           child: Container(
@@ -257,18 +267,13 @@ class _MyHomePageState extends State<MyHomePage>
     );
   }
 
-  Widget scrollableWidget() {
-    return Text('test');
-    return ListView.builder(
-      scrollDirection: Axis.horizontal,
-      itemBuilder: (_, index) {
-        return Card(
-          child: Container(
-              padding: const EdgeInsets.all(20),
-              child: Text('$index$index$index')),
-        );
-      },
-      itemCount: 20,
+  Widget scrollableWidget(String url) {
+    return Center(
+      child: InteractiveViewer(
+          // clipBehavior: Clip.none,
+          minScale: 0.2,
+          maxScale: 20,
+          child: Image.asset(url)),
     );
   }
 
